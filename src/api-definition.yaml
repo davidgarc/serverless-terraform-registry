@@ -1,0 +1,325 @@
+openapi: "3.0.1"
+info:
+  title: "terraform-registry"
+  version: "v1.0"
+paths:
+  /.well-known/terraform.json:
+    get:
+      summary: Remote Service Discovery
+      description: Returns JSON with the supported Terraform identifiers.
+      responses:
+        200:
+          description: "OK"
+          content:
+            application/json:
+              schema:
+                type: object
+                $ref: "#/components/schemas/TerraformNativeServiceIdentifiers"
+      x-amazon-apigateway-integration:
+        type: "mock"
+        responses:
+          default:
+            statusCode: 200
+        requestTemplates:
+          application/json: >
+            {
+              "modules.v1": "/v1/modules/",
+              "providers.v1": "/v1/providers/",
+              "login.v1": "/v1/login"
+            }
+        passthroughBehavior: "when_no_match"
+
+  /modules/{namespace}/{name}/{provider}/versions:
+    get:
+      summary: List module versions
+      description: Primary endpoint for resolving module sources, returning the available versions for a given fully-qualified module.
+      parameters:
+        - name: namespace
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: provider
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: "OK"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  modules:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/TerraformModuleVersion"
+        404:
+          description: no module is available with the requested namespace, name, and provider
+          content: {}
+        500:
+          description: "Internal Server Error"
+          content: {}
+      x-amazon-apigateway-integration:
+        uri:
+          arn:$${AWS::Partition}:apigateway:$${AWS::Region}:lambda:path/2015-03-31/functions/arn:$${AWS::Partition}:lambda:$${AWS::Region}:$${AWS::AccountId}:function:${module_versions_lambda}/invocations
+        responses:
+          default:
+            statusCode: "200"
+        passthroughBehavior: "when_no_match"
+        httpMethod: "POST"
+        contentHandling: "CONVERT_TO_TEXT"
+        type: "aws_proxy"
+
+  /modules/{namespace}/{name}/{system}/{version}/download:
+    get:
+      summary: Download module
+      description: This endpoint downloads the specified version of a module for a single provider.
+      parameters:
+        - name: namespace
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: system
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: version
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        204:
+          description: "OK"
+          content: {}
+          headers:
+            X-Terraform-Get:
+              $ref: "#/components/schemas/TerraformModuleSource"
+        404:
+          description: no module is available with the requested namespace, name, and provider
+          content: {}
+        500:
+          description: "Internal Server Error"
+          content: {}
+      x-amazon-apigateway-integration:
+        uri:
+          arn:$${AWS::Partition}:apigateway:$${AWS::Region}:lambda:path/2015-03-31/functions/arn:$${AWS::Partition}:lambda:$${AWS::Region}:$${AWS::AccountId}:function:${module_source_lambda}/invocations
+        responses:
+          default:
+            statusCode: "200"
+        passthroughBehavior: "when_no_match"
+        httpMethod: "POST"
+        contentHandling: "CONVERT_TO_TEXT"
+        type: "aws_proxy"
+
+  /providers/{namespace}/{type}/versions:
+    get:
+      summary: Get provider versions
+      description: This operation determines which versions are currently available for a particular provider.
+      parameters:
+        - name: namespace
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: type
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: "OK"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  versions:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/TerraformProviderVersion"
+        404:
+          description: registry does not have a provider with the given namespace
+          content: {}
+        500:
+          description: "Internal Server Error"
+          content: {}
+      x-amazon-apigateway-integration:
+        uri:
+          arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${provider_versions_lambda}/invocations
+        responses:
+          default:
+            statusCode: "200"
+        passthroughBehavior: "when_no_match"
+        httpMethod: "POST"
+        contentHandling: "CONVERT_TO_TEXT"
+        type: "aws_proxy"
+
+  /providers/{namespace}/{type}/{version}/download/{os}/{arch}:
+    get:
+      summary: Get provider download
+      description: >
+        This operation returns the download URL of and associated metadata about the distribution package 
+        for a particular version of a provider for a particular operating system and architecture.
+      parameters:
+        - name: namespace
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: type
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: version
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: os
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: arch
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: "OK"
+          content:
+            application/json:
+              schema:
+                type: object
+                $ref: "#/components/schemas/TerraformProviderPackage"
+        404:
+          description: given provider version isn't available for the requested operating system
+          content: {}
+        500:
+          description: "Internal Server Error"
+          content: {}
+      x-amazon-apigateway-integration:
+        uri:
+          arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${provider_package_lambda}/invocations
+        responses:
+          default:
+            statusCode: "200"
+        passthroughBehavior: "when_no_match"
+        httpMethod: "POST"
+        contentHandling: "CONVERT_TO_TEXT"
+        type: "aws_proxy"
+
+components:
+  schemas:
+    TerraformNativeServiceIdentifiers:
+      type: object
+      properties:
+        modules.v1:
+          type: string
+        providers.v1:
+          type: string
+    TerraformProviderVersion:
+      type: object
+      properties:
+        version:
+          type: string
+        protocols:
+          type: array
+          items:
+            type: string
+        platforms:
+          type: array
+          items:
+            type: object
+            properties:
+              os:
+                type: string
+                enum: [darwin, linux, windows]
+              arch:
+                type: string
+                enum: [amd64, arm]
+    TerraformProviderPackage:
+      type: object
+      properties:
+        protocols:
+          type: array
+          items:
+            type: string
+        os:
+          type: string
+          enum: [darwin, linux, windows]
+        arch:
+          type: string
+          enum: [amd64, arm]
+        filename:
+          type: string
+          example: terraform-provider-random_2.0.0_linux_amd64.zip
+        download_url:
+          type: string
+          example: https://releases.hashicorp.com/terraform-provider-random/2.0.0/terraform-provider-random_2.0.0_linux_amd64.zip
+        shasums_url:
+          type: string
+          example: https://releases.hashicorp.com/terraform-provider-random/2.0.0/terraform-provider-random_2.0.0_SHA256SUMS
+        shasums_signature_url:
+          type: string
+          example: https://releases.hashicorp.com/terraform-provider-random/2.0.0/terraform-provider-random_2.0.0_SHA256SUMS.sig
+        shasum:
+          type: string
+          example: 5f9c7aa76b7c34d722fc9123208e26b22d60440cb47150dd04733b9b94f4541a
+        singing_keys:
+          type: object
+          properties:
+            gpg_public_keys:
+              type: array
+              items:
+                type: object
+                properties:
+                  key_id:
+                    type: string
+                    example: 51852D87348FFC4C
+                  ascii_armor:
+                    type: string
+                    example: "-----BEGIN PGP PUBLIC KEY BLOCK-----\nVersion: GnuPG v1\n\nmQENBFMORM0BCADBRyKO1MhCirazOSVwcfTr1xUxjPvfxD3hjUwHtjsOy/bT6p9f\nW2mRPfwnq2JB5As+paL3UGDsSRDnK9KAxQb0NNF4+eVhr/EJ18s3wwXXDMjpIifq\nfIm2WyH3G+aRLTLPIpscUNKDyxFOUbsmgXAmJ46Re1fn8uKxKRHbfa39aeuEYWFA\n3drdL1WoUngvED7f+RnKBK2G6ZEpO+LDovQk19xGjiMTtPJrjMjZJ3QXqPvx5wca\nKSZLr4lMTuoTI/ZXyZy5bD4tShiZz6KcyX27cD70q2iRcEZ0poLKHyEIDAi3TM5k\nSwbbWBFd5RNPOR0qzrb/0p9ksKK48IIfH2FvABEBAAG0K0hhc2hpQ29ycCBTZWN1\ncml0eSA8c2VjdXJpdHlAaGFzaGljb3JwLmNvbT6JATgEEwECACIFAlMORM0CGwMG\nCwkIBwMCBhUIAgkKCwQWAgMBAh4BAheAAAoJEFGFLYc0j/xMyWIIAIPhcVqiQ59n\nJc07gjUX0SWBJAxEG1lKxfzS4Xp+57h2xxTpdotGQ1fZwsihaIqow337YHQI3q0i\nSqV534Ms+j/tU7X8sq11xFJIeEVG8PASRCwmryUwghFKPlHETQ8jJ+Y8+1asRydi\npsP3B/5Mjhqv/uOK+Vy3zAyIpyDOMtIpOVfjSpCplVRdtSTFWBu9Em7j5I2HMn1w\nsJZnJgXKpybpibGiiTtmnFLOwibmprSu04rsnP4ncdC2XRD4wIjoyA+4PKgX3sCO\nklEzKryWYBmLkJOMDdo52LttP3279s7XrkLEE7ia0fXa2c12EQ0f0DQ1tGUvyVEW\nWmJVccm5bq25AQ0EUw5EzQEIANaPUY04/g7AmYkOMjaCZ6iTp9hB5Rsj/4ee/ln9\nwArzRO9+3eejLWh53FoN1rO+su7tiXJA5YAzVy6tuolrqjM8DBztPxdLBbEi4V+j\n2tK0dATdBQBHEh3OJApO2UBtcjaZBT31zrG9K55D+CrcgIVEHAKY8Cb4kLBkb5wM\nskn+DrASKU0BNIV1qRsxfiUdQHZfSqtp004nrql1lbFMLFEuiY8FZrkkQ9qduixo\nmTT6f34/oiY+Jam3zCK7RDN/OjuWheIPGj/Qbx9JuNiwgX6yRj7OE1tjUx6d8g9y\n0H1fmLJbb3WZZbuuGFnK6qrE3bGeY8+AWaJAZ37wpWh1p0cAEQEAAYkBHwQYAQIA\nCQUCUw5EzQIbDAAKCRBRhS2HNI/8TJntCAClU7TOO/X053eKF1jqNW4A1qpxctVc\nz8eTcY8Om5O4f6a/rfxfNFKn9Qyja/OG1xWNobETy7MiMXYjaa8uUx5iFy6kMVaP\n0BXJ59NLZjMARGw6lVTYDTIvzqqqwLxgliSDfSnqUhubGwvykANPO+93BBx89MRG\nunNoYGXtPlhNFrAsB1VR8+EyKLv2HQtGCPSFBhrjuzH3gxGibNDDdFQLxxuJWepJ\nEK1UbTS4ms0NgZ2Uknqn1WRU1Ki7rE4sTy68iZtWpKQXZEJa0IGnuI2sSINGcXCJ\noEIgXTMyCILo34Fa/C6VCm2WBgz9zZO8/rHIiQm1J5zqz0DrDwKBUM9C\n=LYpS\n-----END PGP PUBLIC KEY BLOCK-----"
+                  trust_signature:
+                    type: string
+                  source:
+                    type: string
+                    example: HashiCorp
+                  source_url:
+                    type: string
+                    example: https://www.hashicorp.com/security.html
+                    
+    TerraformModuleVersion:
+      type: object
+      properties:
+        versions:
+          type: array
+          items:
+            type: object
+            properties:
+              version:
+                type: string
+                example: 1.0.0
+    TerraformModuleSource:
+      type: string
+      description: The value of this header accepts the same values as the source argument in a module block in Terraform configuration.
+      example: git::https://github.com/hashicorp/terraform-aws-consul.git?ref=v0.11.0
