@@ -18,18 +18,24 @@ paths:
       x-amazon-apigateway-integration:
         type: "mock"
         responses:
-          default:
+          2\d{2}:
             statusCode: 200
+            responseTemplates:
+              application/json: >
+                {
+                  "modules.v1": "/v1/modules/",
+                  "providers.v1": "/v1/providers/"
+                }
         requestTemplates:
           application/json: >
             {
-              "modules.v1": "/v1/modules/",
-              "providers.v1": "/v1/providers/",
-              "login.v1": "/v1/login"
+              "statusCode": 200
             }
         passthroughBehavior: "when_no_match"
 
-  /modules/{namespace}/{name}/{provider}/versions:
+  # TODO Create new module
+
+  /modules/{namespace}/{name}/{system}/versions:
     get:
       summary: List module versions
       description: Primary endpoint for resolving module sources, returning the available versions for a given fully-qualified module.
@@ -44,7 +50,7 @@ paths:
           required: true
           schema:
             type: string
-        - name: provider
+        - name: system
           in: path
           required: true
           schema:
@@ -69,7 +75,7 @@ paths:
           content: {}
       x-amazon-apigateway-integration:
         uri:
-          arn:$${AWS::Partition}:apigateway:$${AWS::Region}:lambda:path/2015-03-31/functions/arn:$${AWS::Partition}:lambda:$${AWS::Region}:$${AWS::AccountId}:function:${module_versions_lambda}/invocations
+          arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:modules_versions_lambda/invocations
         responses:
           default:
             statusCode: "200"
@@ -118,7 +124,7 @@ paths:
           content: {}
       x-amazon-apigateway-integration:
         uri:
-          arn:$${AWS::Partition}:apigateway:$${AWS::Region}:lambda:path/2015-03-31/functions/arn:$${AWS::Partition}:lambda:$${AWS::Region}:$${AWS::AccountId}:function:${module_source_lambda}/invocations
+          arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:modules_source_lambda/invocations
         responses:
           default:
             statusCode: "200"
@@ -126,6 +132,8 @@ paths:
         httpMethod: "POST"
         contentHandling: "CONVERT_TO_TEXT"
         type: "aws_proxy"
+
+  # TODO Create new provider
 
   /providers/{namespace}/{type}/versions:
     get:
@@ -162,7 +170,7 @@ paths:
           content: {}
       x-amazon-apigateway-integration:
         uri:
-          arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${provider_versions_lambda}/invocations
+          arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:providers_versions_lambda/invocations
         responses:
           default:
             statusCode: "200"
@@ -219,7 +227,7 @@ paths:
           content: {}
       x-amazon-apigateway-integration:
         uri:
-          arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${provider_package_lambda}/invocations
+          arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:providers_package_lambda/invocations
         responses:
           default:
             statusCode: "200"
@@ -228,6 +236,13 @@ paths:
         contentHandling: "CONVERT_TO_TEXT"
         type: "aws_proxy"
 
+  ## TODO
+  # List Modules
+  # Search Modules
+  # List Available Version for a Specific Module
+  # List Latest Version of Module for All Providers
+  # Latest Version for a Specific Module Provider
+  # Download the Latest Version of a Module
 components:
   schemas:
     TerraformNativeServiceIdentifiers:
