@@ -89,12 +89,21 @@ resource "aws_iam_role_policy_attachment" "providers_role_policy_attachment" {
 }
 
 # 4 lambdas
+data "archive_file" "lambdas" {
+  type = "zip"
+
+  source_dir = "${path.module}/src/lambdas"
+  output_path = "${path.module}/lambdas.zip"
+}
 resource "aws_lambda_function" "modules_source_lambda" {
   function_name = "modules_source_lambda"
   role = aws_iam_role.modules_lambda_role.arn
-  handler = "index.handler"
+  
+  handler = "module_source_lambda.handler"
   runtime = "nodejs14.x"
-  filename = "src/lambdas/module_source_lambda.js"
+  filename = "lambdas.zip"
+
+  source_code_hash = data.archive_file.lambdas.output_base64sha256
 
   environment {
     variables = {
@@ -106,9 +115,11 @@ resource "aws_lambda_function" "modules_source_lambda" {
 resource "aws_lambda_function" "modules_versions_lambda" {
   function_name = "modules_versions_lambda"
   role = aws_iam_role.modules_lambda_role.arn
-  handler = "index.handler"
+  handler = "module_versions_lambda.handler"
   runtime = "nodejs14.x"
-  filename = "src/lambdas/module_versions_lambda.js"
+  filename = "lambdas.zip"
+
+  source_code_hash = data.archive_file.lambdas.output_base64sha256
 
   environment {
     variables = {
@@ -120,9 +131,11 @@ resource "aws_lambda_function" "modules_versions_lambda" {
 resource "aws_lambda_function" "providers_package_lambda" {
   function_name = "providers_package_lambda"
   role = aws_iam_role.providers_lambda_role.arn
-  handler = "index.handler"
+  handler = "provder_package_lambda.handler"
   runtime = "nodejs14.x"
-  filename = "src/lambdas/provder_package_lambda.js"
+  filename = "lambdas.zip"
+
+  source_code_hash = data.archive_file.lambdas.output_base64sha256
 
   environment {
     variables = {
@@ -134,9 +147,11 @@ resource "aws_lambda_function" "providers_package_lambda" {
 resource "aws_lambda_function" "providers_versions_lambda" {
   function_name = "providers_versions_lambda"
   role = aws_iam_role.providers_lambda_role.arn
-  handler = "index.handler"
+  handler = "module_versions_lambda.handler"
   runtime = "nodejs14.x"
-  filename = "src/lambdas/module_versions_lambda.js"
+  filename = "lambdas.zip"
+
+  source_code_hash = data.archive_file.lambdas.output_base64sha256
 
   environment {
     variables = {
@@ -172,4 +187,48 @@ resource "aws_api_gateway_stage" "terraform_registry" {
   deployment_id = aws_api_gateway_deployment.terraform_registry.id
   rest_api_id   = aws_api_gateway_rest_api.terraform_registry.id
   stage_name    = "v1"
+}
+
+resource "aws_lambda_permission" "modules_source_lambda" {
+  statement_id  = "allow_api_invoke_modules_source_lambda"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.modules_source_lambda.id
+  principal     = "apigateway.amazonaws.com"
+
+  # The /*/*/* part allows invocation from any stage, method and resource path
+  # within API Gateway REST API.
+  source_arn = "${aws_api_gateway_rest_api.terraform_registry.execution_arn}/*/*/*"
+}
+
+resource "aws_lambda_permission" "modules_versions_lambda" {
+  statement_id  = "allow_api_invoke_modules_versions_lambda"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.modules_versions_lambda.id
+  principal     = "apigateway.amazonaws.com"
+
+  # The /*/*/* part allows invocation from any stage, method and resource path
+  # within API Gateway REST API.
+  source_arn = "${aws_api_gateway_rest_api.terraform_registry.execution_arn}/*/*/*"
+}
+
+resource "aws_lambda_permission" "providers_package_lambda" {
+  statement_id  = "allow_api_invoke_providers_package_lambda"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.providers_package_lambda.id
+  principal     = "apigateway.amazonaws.com"
+
+  # The /*/*/* part allows invocation from any stage, method and resource path
+  # within API Gateway REST API.
+  source_arn = "${aws_api_gateway_rest_api.terraform_registry.execution_arn}/*/*/*"
+}
+
+resource "aws_lambda_permission" "providers_versions_lambda" {
+  statement_id  = "allow_api_invoke_providers_versions_lambda"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.providers_versions_lambda.id
+  principal     = "apigateway.amazonaws.com"
+
+  # The /*/*/* part allows invocation from any stage, method and resource path
+  # within API Gateway REST API.
+  source_arn = "${aws_api_gateway_rest_api.terraform_registry.execution_arn}/*/*/*"
 }
